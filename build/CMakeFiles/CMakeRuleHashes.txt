@@ -1,0 +1,6 @@
+# Hashes of file build rules.
+8162bd63b327d85af5b63ae93505e833 terrain/shader/CMakeFiles/shaders
+cbb411c425bb70487c1a2e5c1aab6ec0 terrain/shader/ptg.fs
+698d0939ac6be1e14b67da2024f190ef terrain/shader/ptg.tcs
+46a2197e1027ce570a3d06e202ae16e6 terrain/shader/ptg.tes
+312670a61caa41d8c402e241d1238b8a terrain/shader/ptg.vs

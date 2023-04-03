@@ -22,5 +22,8 @@ find_package( glm CONFIG REQUIRED )
 find_package( glfw3 CONFIG REQUIRED )
 find_package( OpenGL REQUIRED )
 
+include_directories( ingredients )
+
+add_subdirectory( ingredients )
 add_subdirectory( terrain )
 add_subdirectory( terrain/shader )

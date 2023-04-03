@@ -17,3 +17,4 @@ target_link_libraries( ${target}
 		)
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shader DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/iceland_heightmap.png DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

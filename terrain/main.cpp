@@ -1,26 +1,41 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <string>
-#include <vector>
-#include <math.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/constants.hpp>
-using glm::vec3;
-using glm::vec4;
-using glm::mat4;
-using glm::mat3;
-using std::vector;
 
-int tessLevel;
+#include <learnopengl/camera.h>
+
+#include <iostream>
+#include <vector>
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int modifiers);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+void processInput(GLFWwindow *window);
+
+// settings
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
+const unsigned int NUM_PATCH_PTS = 4;
 
 GLuint program;
 
-int lastTime;
-int nFrames;
+// camera - give pretty starting point
+Camera camera(glm::vec3(67.0f, 627.5f, 169.9f),
+              glm::vec3(0.0f, 1.0f, 0.0f),
+              -128.1f, -42.4f);
+float lastX = SCR_WIDTH / 2.0f;
+float lastY = SCR_HEIGHT / 2.0f;
+bool firstMouse = true;
+
+// timing
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
 
 void readShader(const char* fname, char *source)
 {
@@ -59,166 +74,294 @@ unsigned int loadShader(const char *source, unsigned int mode)
 
 void initShaders()
 {
-	char *vsSource, *fsSource;//, *gsSource, *tcsSource, *tesSource;
-	GLuint vs,fs;//,gs,tcs,tes;
+	char *vsSource, *fsSource, *tcsSource, *tesSource;
+	GLuint vs,fs,tcs,tes;
 
 	vsSource = (char *)malloc(sizeof(char)*20000);
 	fsSource = (char *)malloc(sizeof(char)*20000);
-	// gsSource = (char *)malloc(sizeof(char)*20000);
-	// tcsSource = (char *)malloc(sizeof(char)*20000);
-	// tesSource = (char *)malloc(sizeof(char)*20000);
+	tcsSource = (char *)malloc(sizeof(char)*20000);
+	tesSource = (char *)malloc(sizeof(char)*20000);
 
 	vsSource[0]='\0';
 	fsSource[0]='\0';
-	// gsSource[0]='\0';
-	// tcsSource[0]='\0';
-	// tesSource[0]='\0';
+	tcsSource[0]='\0';
+	tesSource[0]='\0';
 
 	program = glCreateProgram();
 
 	readShader("shader/ptg.vs",vsSource);
 	readShader("shader/ptg.fs",fsSource);
-	// readShader("shader/ptg.gs",gsSource);
-	// readShader("shader/ptg.tcs",tcsSource);
-	// readShader("shader/ptg.tes",tesSource);
+	readShader("shader/ptg.tcs",tcsSource);
+	readShader("shader/ptg.tes",tesSource);
 
 	vs = loadShader(vsSource,GL_VERTEX_SHADER);
 	fs = loadShader(fsSource,GL_FRAGMENT_SHADER);
-	// gs = loadShader(gsSource,GL_GEOMETRY_SHADER);
-	// tcs = loadShader(tcsSource,GL_TESS_CONTROL_SHADER);
-	// tes = loadShader(tesSource,GL_TESS_EVALUATION_SHADER);
+	tcs = loadShader(tcsSource,GL_TESS_CONTROL_SHADER);
+	tes = loadShader(tesSource,GL_TESS_EVALUATION_SHADER);
 
 	glAttachShader(program,vs);
 	glAttachShader(program,fs);
-	// glAttachShader(program,gs);
-	// glAttachShader(program,tcs);
-	// glAttachShader(program,tes);
+	glAttachShader(program,tcs);
+	glAttachShader(program,tes);
 
 	glLinkProgram(program);
 
 	glUseProgram(program);
-	
 }
 
-static void error_callback(int error, const char* description)
+int main()
 {
-    fprintf(stderr, "Error: %s\n", description);
-}
-
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
-    if (key == GLFW_KEY_UP && action == GLFW_PRESS)
-        tessLevel++;
-    if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
-        tessLevel--;
-}
-
-void showFPS(GLFWwindow* window) {
-        double currentTime = glfwGetTime();
-        double delta = currentTime - lastTime;
-	    char ss[500] = {};
-		std::string wTitle = "Final Project";
-        nFrames++;
-        if ( delta >= 1.0 ){ // If last update was more than 1 sec ago
-            double fps = ((double)(nFrames)) / delta;
-            sprintf(ss,"%s running at %lf FPS. TessLevel = %d.",wTitle.c_str(),fps,tessLevel);
-            glfwSetWindowTitle(window, ss);
-            nFrames = 0;
-            lastTime = currentTime;
-        }
-}
-
-int main(void)
-{
-	
-    GLFWwindow* window;
-
-	lastTime = 0;
-	nFrames = 0;
-
-    glfwSetErrorCallback(error_callback);
-    if (!glfwInit())
-        exit(EXIT_FAILURE);
-
+    // glfw: initialize and configure
+    // ------------------------------
+    glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-    window = glfwCreateWindow(800, 600, "Lab03", NULL, NULL);
-    if (!window)
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
+    // glfw window creation
+    // --------------------
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL: Terrain GPU", NULL, NULL);
+    if (window == NULL)
     {
+        std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
-        exit(EXIT_FAILURE);
+        return -1;
     }
-    glfwSetKeyCallback(window, key_callback);
     glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
-    glfwSwapInterval(1);
+    // tell GLFW to capture our mouse
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	gladLoadGL();
+    // glad: load all OpenGL function pointers
+    // ---------------------------------------
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
 
-	const GLubyte *renderer = glGetString( GL_RENDERER );
-	const GLubyte *vendor = glGetString( GL_VENDOR );
-	const GLubyte *version = glGetString( GL_VERSION );
-	const GLubyte *glslVersion = glGetString( GL_SHADING_LANGUAGE_VERSION );
+    GLint maxTessLevel;
+    glGetIntegerv(GL_MAX_TESS_GEN_LEVEL, &maxTessLevel);
+    std::cout << "Max available tess level: " << maxTessLevel << std::endl;
 
-	GLint major, minor;
-	glGetIntegerv(GL_MAJOR_VERSION, &major);
-	glGetIntegerv(GL_MINOR_VERSION, &minor);
-
-	printf("GL Vendor            : %s\n", vendor);
-	printf("GL Renderer          : %s\n", renderer);
-	printf("GL Version (string)  : %s\n", version);
-	printf("GL Version (integer) : %d.%d\n", major, minor);
-	printf("GLSL Version         : %s\n", glslVersion);
-	
-    initShaders();
-
+    // configure global opengl state
+    // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
-    // TODO : setup buffers
+    // build and compile our shader program
+    // ------------------------------------
+    initShaders();
 
-    glPatchParameteri(GL_PATCH_VERTICES, 12); // 4 control points with 2 partial derivatives (du and dv) at each control point
+    // load and create a texture
+    // -------------------------
+    unsigned int texture;
+    glGenTextures(1, &texture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // load image, create texture and generate mipmaps
+    int width, height, nrChannels;
+    // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
+    unsigned char *data = stbi_load("iceland_heightmap.png", &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
 
-	float angle = 0;
-    tessLevel = 8;
-	
-    vec3 cameraPos;
-    mat4 mvp,view,projection,model;
+        glUniform1i(glGetUniformLocation(program,"heightMap"), 0);
+        std::cout << "Loaded heightmap of size " << height << " x " << width << std::endl;
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
 
-	glClearColor(0.5,0.5,0.5,1.0);
+    // set up vertex data (and buffer(s)) and configure vertex attributes
+    // ------------------------------------------------------------------
+    std::vector<float> vertices;
 
-	glBindVertexArray(0);
+    unsigned rez = 20;
+    for(unsigned i = 0; i <= rez-1; i++)
+    {
+        for(unsigned j = 0; j <= rez-1; j++)
+        {
+            vertices.push_back(-width/2.0f + width*i/(float)rez); // v.x
+            vertices.push_back(0.0f); // v.y
+            vertices.push_back(-height/2.0f + height*j/(float)rez); // v.z
+            vertices.push_back(i / (float)rez); // u
+            vertices.push_back(j / (float)rez); // v
 
+            vertices.push_back(-width/2.0f + width*(i+1)/(float)rez); // v.x
+            vertices.push_back(0.0f); // v.y
+            vertices.push_back(-height/2.0f + height*j/(float)rez); // v.z
+            vertices.push_back((i+1) / (float)rez); // u
+            vertices.push_back(j / (float)rez); // v
+
+            vertices.push_back(-width/2.0f + width*i/(float)rez); // v.x
+            vertices.push_back(0.0f); // v.y
+            vertices.push_back(-height/2.0f + height*(j+1)/(float)rez); // v.z
+            vertices.push_back(i / (float)rez); // u
+            vertices.push_back((j+1) / (float)rez); // v
+
+            vertices.push_back(-width/2.0f + width*(i+1)/(float)rez); // v.x
+            vertices.push_back(0.0f); // v.y
+            vertices.push_back(-height/2.0f + height*(j+1)/(float)rez); // v.z
+            vertices.push_back((i+1) / (float)rez); // u
+            vertices.push_back((j+1) / (float)rez); // v
+        }
+    }
+    std::cout << "Loaded " << rez*rez << " patches of 4 control points each" << std::endl;
+    std::cout << "Processing " << rez*rez*4 << " vertices in vertex shader" << std::endl;
+
+    // first, configure the cube's VAO (and terrainVBO)
+    unsigned int terrainVAO, terrainVBO;
+    glGenVertexArrays(1, &terrainVAO);
+    glBindVertexArray(terrainVAO);
+
+    glGenBuffers(1, &terrainVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, terrainVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
+
+    // position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // texCoord attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(sizeof(float) * 3));
+    glEnableVertexAttribArray(1);
+
+    glPatchParameteri(GL_PATCH_VERTICES, NUM_PATCH_PTS);
+
+    // render loop
+    // -----------
     while (!glfwWindowShouldClose(window))
     {
-        float ratio;
-        int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
-        glViewport(0, 0, width, height);
+        // per-frame time logic
+        // --------------------
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
 
-        float w2 = width / 2.0f;
-        float h2 = height / 2.0f;
-        mat4 viewport = mat4( vec4(w2,0.0f,0.0f,0.0f),
-                     vec4(0.0f,h2,0.0f,0.0f),
-                     vec4(0.0f,0.0f,1.0f,0.0f),
-                     vec4(w2+0, h2+0, 0.0f, 1.0f));
+        // input
+        // -----
+        processInput(window);
 
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        // render
+        // ------
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // TODO
+        // be sure to activate shader when setting uniforms/drawing objects
+        glUseProgram(program);
 
-		showFPS(window);
+        // view/projection transformations
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100000.0f);
+        glm::mat4 view = camera.GetViewMatrix();
+    	glUniformMatrix4fv(glGetUniformLocation(program,"projection"), 1, GL_FALSE, &(projection)[0][0]);
+    	glUniformMatrix4fv(glGetUniformLocation(program,"view"), 1, GL_FALSE, &(view)[0][0]);
 
+        // world transformation
+        glm::mat4 model = glm::mat4(1.0f);
+    	glUniformMatrix4fv(glGetUniformLocation(program,"model"), 1, GL_FALSE, &(model)[0][0]);
+
+        // render the terrain
+        glBindVertexArray(terrainVAO);
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // uncomment for wireframe
+        glDrawArrays(GL_PATCHES, 0, NUM_PATCH_PTS*rez*rez);
+
+        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
+        // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-	
-    glfwDestroyWindow(window);
+
+    // optional: de-allocate all resources once they've outlived their purpose:
+    // ------------------------------------------------------------------------
+    glDeleteVertexArrays(1, &terrainVAO);
+    glDeleteBuffers(1, &terrainVBO);
+
+    // glfw: terminate, clearing all previously allocated GLFW resources.
+    // ------------------------------------------------------------------
     glfwTerminate();
-    exit(EXIT_SUCCESS);
+    return 0;
+}
+
+// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// ---------------------------------------------------------------------------------------------------------
+void processInput(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime);
+}
+
+// glfw: whenever the window size changed (by OS or user resize) this callback function executes
+// ---------------------------------------------------------------------------------------------
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    // make sure the viewport matches the new window dimensions; note that width and
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
+}
+
+// glfw: whenever a key event occurs, this callback is called
+// ---------------------------------------------------------------------------------------------
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int modifiers)
+{
+    if(action == GLFW_PRESS)
+    {
+        switch(key)
+        {
+            default:
+                break;
+        }
+    }
+}
+
+// glfw: whenever the mouse moves, this callback is called
+// -------------------------------------------------------
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    if (firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+
+    lastX = xpos;
+    lastY = ypos;
+
+    camera.ProcessMouseMovement(xoffset, yoffset);
+}
+
+// glfw: whenever the mouse scroll wheel scrolls, this callback is called
+// ----------------------------------------------------------------------
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    camera.ProcessMouseScroll(yoffset);
 }

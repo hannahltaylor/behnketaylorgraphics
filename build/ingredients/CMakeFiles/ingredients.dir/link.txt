@@ -1,0 +1,2 @@
+C:\w64devkit\bin\ar.exe qc libingredients.a CMakeFiles/ingredients.dir/glad/src/glad.c.obj CMakeFiles/ingredients.dir/stb/stb_vorbis.c.obj
+C:\w64devkit\bin\ranlib.exe libingredients.a
