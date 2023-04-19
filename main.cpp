@@ -7,7 +7,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
+#include "skybox.h"
 //#include <learnopengl/shader_t.h>
 #include "shader_t.h"
 //#include <learnopengl/camera.h>
@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <glm/gtc/noise.hpp>
+#include "texture.h"
 using namespace std;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -26,8 +27,8 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
 
 // settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1800;
+const unsigned int SCR_HEIGHT = 1600;
 const unsigned int NUM_PATCH_PTS = 4;
 
 // camera - give pretty starting point
@@ -44,6 +45,100 @@ float lastFrame = 0.0f;
 float map(float value, float fromLow, float fromHigh, float toLow, float toHigh) {
     return (value - fromLow) * (toHigh - toLow) / (fromHigh - fromLow) + toLow;
 }
+
+unsigned int loadTexture(char const * path)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    // Load image with stbi load
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum format;
+        if (nrComponents == 1)
+            format = GL_RED;
+        else if (nrComponents == 3)
+            format = GL_RGB;
+        else if (nrComponents == 4)
+            format = GL_RGBA;
+
+        // Bind and generate map
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, format == GL_RGBA ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, format == GL_RGBA ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
+void loadAndBindTextures(const std::vector<std::string>& texturePaths, unsigned int program_handle)
+{
+    std::vector<GLuint> textureIDs(texturePaths.size());
+
+    // Generate texture IDs
+    glGenTextures(texturePaths.size(), &textureIDs[0]);
+
+    // Load and bind each texture
+    for (int i = 0; i < texturePaths.size(); ++i) {
+        // Load texture data from file
+        int width, height, numChannels;
+        unsigned char* data = stbi_load(texturePaths[i].c_str(), &width, &height, &numChannels, 0);
+
+        if (!data) {
+            std::cerr << "Failed to load texture from file: " << texturePaths[i] << std::endl;
+            continue;
+        }
+
+        // Bind texture to texture unit
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, textureIDs[i]);
+
+        // Set texture parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // Upload texture data
+        GLenum format = (numChannels == 3 ? GL_RGB : GL_RGBA);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // Free texture data
+        stbi_image_free(data);
+    }
+
+    // Set texture sampler uniforms in shader
+    for (int i = 0; i < textureIDs.size(); ++i) {
+        string temp;
+        if(i == 1)
+            temp = "rockTexture";
+        else if( i == 2)
+            temp = "waterTexture";
+        else    
+            temp = "snowTexture";
+        GLuint location = glGetUniformLocation(program_handle, temp.c_str());
+        glUniform1i(location, i);
+    }
+}
+
+
 
 int main()
 {
@@ -138,9 +233,7 @@ int main()
     if (data)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-        std::cout << "Here1" << std::endl;
        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, data);
-        std::cout << "Here" << std::endl;
         glGenerateMipmap(GL_TEXTURE_2D);
 
         tessHeightMapShader.setInt("heightMap", 0);
@@ -165,7 +258,7 @@ int main()
     // ------------------------------------------------------------------
     std::vector<float> vertices;
 
-    unsigned rez = 30;
+    unsigned rez = 40;
     for(unsigned i = 0; i <= rez-1; i++)
     {
         for(unsigned j = 0; j <= rez-1; j++)
@@ -216,8 +309,44 @@ int main()
 
     glPatchParameteri(GL_PATCH_VERTICES, NUM_PATCH_PTS);
 
+    // This currently works
+    //unsigned int rockTexture = loadTexture("textures/grey-rock-texture-1.jpg");
+    //cout << "rock = " << rockTexture << endl;
+    //glActiveTexture(GL_TEXTURE0);
+    //glBindTexture(GL_TEXTURE_2D, rockTexture);
+
+    vector<string> texturePaths;
+    texturePaths.push_back("textures/grey-rock-texture-1.jpg");
+    texturePaths.push_back("textures/water2.jpg");
+    texturePaths.push_back("textures/snow.jpg");
+    loadAndBindTextures(texturePaths, tessHeightMapShader.ID);
+
+
+    /*
+    unsigned int waterTexture = loadTexture("textures/water2.jpg");
+    cout << "water = " << waterTexture << endl;
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, waterTexture);
+
+
+    // Set texture sampler uniforms in shader
+    GLint texture1_location = glGetUniformLocation(tessHeightMapShader.ID, "rockTexture");
+    GLint texture2_location = glGetUniformLocation(tessHeightMapShader.ID, "waterTexture");
+    glUniform1i(texture1_location, 0);
+    glUniform1i(texture2_location, 1);
+    */
+
     // render loop
     // -----------
+    SkyBox skyBox(1000.0f);
+    Shader SkyboxShader("skybox.vs","skybox.fs", nullptr, nullptr, nullptr);
+    SkyboxShader.use();
+    GLuint cubeTex = Texture::loadCubeMap("skybox_images/cube");
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeTex);
+    SkyboxShader.setInt("SkyBoxTex", 0);
+    // Set the matrices in the render loop
+    
     while (!glfwWindowShouldClose(window))
     {
         // per-frame time logic
@@ -236,16 +365,26 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // be sure to activate shader when setting uniforms/drawing objects
-        tessHeightMapShader.use();
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100000.0f);
         glm::mat4 view = camera.GetViewMatrix();
+        // World Transformation
+        glm::mat4 model = glm::mat4(1.0f);
+
+        SkyboxShader.use();
+        SkyboxShader.setMat4("projection", projection);
+        SkyboxShader.setMat4("view", view);
+        SkyboxShader.setMat4("model", model);
+        skyBox.render();
+
+
+
+        tessHeightMapShader.use();
+
+        // Set Matricies 
         tessHeightMapShader.setMat4("projection", projection);
         tessHeightMapShader.setMat4("view", view);
-
-        // world transformation
-        glm::mat4 model = glm::mat4(1.0f);
         tessHeightMapShader.setMat4("model", model);
 
         // render the terrain
