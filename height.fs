@@ -1,3 +1,8 @@
+/*
+    Modified from: https://learnopengl.com/Guest-Articles/2021/Tessellation/Height-map
+             and   https://learnopengl.com/Guest-Articles/2021/Tessellation/Tessellation
+*/
+
 #version 410 core
 
 in float Height;

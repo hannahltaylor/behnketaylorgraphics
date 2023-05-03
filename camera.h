@@ -1,3 +1,7 @@
+/*
+    Modified from: https://learnopengl.com/Guest-Articles/2021/Tessellation/Height-map
+             and   https://learnopengl.com/Guest-Articles/2021/Tessellation/Tessellation
+*/
 #ifndef CAMERA_H
 #define CAMERA_H
 

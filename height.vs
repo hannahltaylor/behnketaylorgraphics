@@ -1,3 +1,7 @@
+/*
+    Modified from: https://learnopengl.com/Guest-Articles/2021/Tessellation/Height-map
+             and   https://learnopengl.com/Guest-Articles/2021/Tessellation/Tessellation
+*/
 #version 410 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTex;
