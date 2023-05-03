@@ -1,3 +1,9 @@
+/*
+    Modified from: https://learnopengl.com/Guest-Articles/2021/Tessellation/Height-map
+             and   https://learnopengl.com/Guest-Articles/2021/Tessellation/Tessellation
+*/
+
+
 #ifndef SHADER_H
 #define SHADER_H
 
